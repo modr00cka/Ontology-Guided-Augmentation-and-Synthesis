@@ -1,0 +1,5 @@
+,patient_id,row_id,SemEHR_Section,entity_id,type,CUI,string,TUI,STY,start_offset,end_offset
+0,1,1,N/A,0,N/A,C0157738,Chronic ulcer,N/A,N/A,372,385
+1,1,1,N/A,0,N/A,C0157738,Chronic ulcer,N/A,N/A,584,597
+2,1,1,N/A,0,N/A,C0157738,Chronic ulcer,N/A,N/A,1683,1696
+0,1,1,N/A,0,N/A,C0155626,Acute Myocardial Infarction,N/A,N/A,860,882

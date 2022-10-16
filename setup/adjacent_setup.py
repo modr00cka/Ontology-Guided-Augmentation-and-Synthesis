@@ -7,7 +7,7 @@ MIMIC_DIR = "path/to/MIMIC/Dir"
 desc_json_path = "/path/to/icd/graph.json" # as presented in the CoPHE repo.
 
 
-def initial_setup(desc_json_path):
+def initial_setup(desc_json_path:str):
     """
     Initialises a dataframe of relevant codes linked with their parent and grandparent codes
     """
@@ -20,14 +20,19 @@ def initial_setup(desc_json_path):
     	# Filtering grandparent/lower-deph entries
         if original_code_dict[key]["parents"][2]!=key:
             considered_labels.append(key)
+    
     key_level = []
     parent_level = []
     grandparent_level = []
+    
+    # feeding in code, parent, and grandparents for each considered label
         
     for code in considered_labels:
         key_level.append(code)
         parent_level.append(original_code_dict[code]["parents"][0])
         grandparent_level.append(original_code_dict[code]["parents"][1])
+    
+    #setting up a dataframe
     
     col_dict = dict({"code":key_level, "parent":parent_level, "grandparent":grandparent_level})
     code_df = pd.DataFrame(col_dict)
@@ -35,7 +40,7 @@ def initial_setup(desc_json_path):
     return setup_sets(code_df, original_code_dict, considered_labels)
 
 
-def accumulate_family(gp_code, df, valid_codes):
+def accumulate_family(gp_code:str, df:pd.core.frame.DataFrame, valid_codes:list):
     """
     Given a grandparent code, the conversion dataframe, and a list of valid codes considered for your setup, creates a list of all the valid codes descended from the grandparent (including parents and leaves).
     """
@@ -47,7 +52,7 @@ def accumulate_family(gp_code, df, valid_codes):
     return codes
 
 
-def accumulate_siblings(p_code, df, valid_codes):
+def accumulate_siblings(p_code:str, df:pd.core.frame.DataFrame, valid_codes:list):
     """
     Given a parent code, the conversion dataframe, and a list of valid codes considered for your setup, creates a list of all the valid codes descended from the parent
     """
@@ -59,7 +64,7 @@ def accumulate_siblings(p_code, df, valid_codes):
     return codes
 
 
-def isolate_unspecified(codes, code_dict):
+def isolate_unspecified(codes:list, code_dict:dict):
     """
     Given a list of codes and the code description graph isolates the codes with ``unspecified'' in the label description.
     """
@@ -67,7 +72,7 @@ def isolate_unspecified(codes, code_dict):
     return "|".join(results)
 
 
-def isolate_other(codes, code_dict):
+def isolate_other(codes:list, code_dict:dict):
     """
     Given a list of codes and the code description graph isolates the non-``unspecified codes'' with ``other'' in the label description.
     """
@@ -76,7 +81,7 @@ def isolate_other(codes, code_dict):
     return "|".join(results)
 
 
-def isolate_specified(codes, unspecified):
+def isolate_specified(codes:list, unspecified:set):
     """
     Given a list of codes and and the ``unspeciefied''s, returns the codes that are not ``unspecified''.
     """
@@ -84,7 +89,7 @@ def isolate_specified(codes, unspecified):
     return "|".join(results)
 
 
-def create_conversion(row):
+def create_conversion(row:pd.core.series.Series):
     """
     Providing the relevant labels for conversion -- if the input is parent level -- single-digit-etiology (e.g., 401.9) 
     """
@@ -95,7 +100,7 @@ def create_conversion(row):
     return conversion
 
 
-def setup_sets(df, original_code_dict, valid_codes):
+def setup_sets(df:pd.core.frame.DataFrame, original_code_dict:dict, valid_codes:list):
     """
     Takes all the accumlator and isolator methods, populates their respective dataframe columns
     """
@@ -107,13 +112,16 @@ def setup_sets(df, original_code_dict, valid_codes):
     df["specified"] = df.apply(lambda row: isolate_specified(row.family, row.unspecified+row.other), axis = 1)
     return df
 
-def derive_sets(MIMIC_DIR):
+def derive_sets(MIMIC_DIR:str):
     """
     Used to determine the frequent, few-shot, and zero-shot codesets in Mullenbach's split of MIMIC-III
     The frequent set consists of codes appearing more than 5 times in the training set;
     The few-shot set consists of codes appearing at most 5 times, but at least once in the training set;
     The zero-shot set consists of codes appearing in MIMIC-III's discharge summaries, but not in the training set.
+    returns the three sets
     """
+    
+    # loading discharge summaries
     trainf = MIMIC_DIR + "/train_full.csv"
     devf = MIMIC_DIR + "/dev_full.csv"
     testf = MIMIC_DIR + "/test_full.csv"
@@ -122,6 +130,7 @@ def derive_sets(MIMIC_DIR):
     de = pd.read_csv(devf, converters={'LABELS': str})
     te = pd.read_csv(testf, converters={'LABELS': str})
 
+    # retrieving labels
     tr_labels = ";".join(list(tr.LABELS)).split(";")
     de_labels = ";".join(list(de.LABELS)).split(";")
     te_labels = ";".join(list(te.LABELS)).split(";")
@@ -130,22 +139,24 @@ def derive_sets(MIMIC_DIR):
     cde = Counter(de_labels)
     cte = Counter(te_labels)
     
+    # splitting up codes based on their frequency in training data
     seen_set = set()
     few_shot = set()
-    normal = set()
+    frequent = set()
     for key in ctr.keys():
         if ctr[key]>5:
-            normal.add(key)
+            frequent.add(key)
         else:
             few_shot.add(key)
-    seen_set = few_shot.union(normal)
+    seen_set = few_shot.union(frequent)
 
-    zero_shot = set(cte.keys()).union(set(cde.keys()))
-    zero_shot = zero_shot.difference(seen_set)
-    return normal, few_shot, zero_shot
+    # isolating zero-shot-set codes by getting the set difference between training labels and the union of dev and test labels.
+    zero_shot_prep = set(cte.keys()).union(set(cde.keys()))
+    zero_shot = zero_shot_prep.difference(seen_set)
+    return frequent, few_shot, zero_shot
     
 
-def find_relevant_specifieds(frame, normal):
+def find_relevant_specifieds(frame:pd.core.frame.DataFrame, normal:set):
     """
     Finds relevant specified codes that are appearing in a code subset.
     """
@@ -167,14 +178,14 @@ def find_relevant_specifieds(frame, normal):
     return relevant_specifieds, unspecified_normals, normal_frame
     
 
-def filter_family_set(row, shot_set):
+def filter_family_set(row:pd.core.series.Series, shot_set:set):
     """
     Given a row and a subset of codes, filter the row's specified candidate siblings by the subset.
     """
     return '|'.join(list(set(row.specified.split("|")).intersection(shot_set)))
     
 
-def create_conversion_table(frame, norm, few, zero): 
+def create_conversion_table(frame:pd.core.frame.DataFrame, norm:set, few:set, zero:set): 
     """
     Creates the final conversion table that allows the lookup: given a code, which viable siblings exist in the zero-shot, few-shot, and frequent subset respectively.
     """
@@ -187,7 +198,7 @@ def create_conversion_table(frame, norm, few, zero):
     return conversion_table
     
 
-def viable_sibling_check(df, code, subset):
+def viable_sibling_check(df:pd.core.frame.DataFrame, code:str, subset:set):
     """
     Checks whether there is a viable sibling code for a code given the conversion table, and the code subset in which it should appear. 
     """
@@ -196,7 +207,7 @@ def viable_sibling_check(df, code, subset):
     return len(options)>0
     
 
-def random_sibling_code(df, code, subset):
+def random_sibling_code(df:pd.core.frame.DataFrame, code:str, subset:set):
     """
     Return a random viable sibiling given the conversion table, the code, and the subset in which the sibling is to appear.
     """
@@ -205,16 +216,17 @@ def random_sibling_code(df, code, subset):
     return choice(list(options))
     
 
-def run_conversion_table(frame, MIMIC_DIR, conversion_path):
+def run_conversion_table(frame:pd.core.frame.DataFrame, MIMIC_DIR:str):
     """
     Bringing it all toghether
     """
     norm, few, zero = derive_sets(MIMIC_DIR)
     relevant_specified, unspecified_normal, nf = find_relevant_specifieds(frame, norm)        
     conversion_table = create_conversion_table(nf, norm, few, zero)
-    conversion_table.to_csv(conversion_path)
+    return conversion_table
     
 if __name__ == "__main__":
     frame = initial_setup(desc_json_path)
     conversion_path = "/Path/where/to/save/conversion/table.csv"
-    run_conversion_table(frame, MIMIC_DIR, conversion_path)
+    conv_table_df = run_conversion_table(frame, MIMIC_DIR)
+    conv_table_df.to_csv(conversion_path)
